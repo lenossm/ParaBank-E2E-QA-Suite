@@ -30,8 +30,7 @@ public class AccountApiClient {
         Response response = getAccount(accountId);
         response.then().statusCode(200);
 
-        // ParaBank sometimes returns XML even when JSON is requested,
-        // so try JSON first and fall back to XML path.
+        // sometimes they send xml anyway
         try {
             return response.jsonPath().getDouble("balance");
         } catch (Exception jsonFailed) {
@@ -46,6 +45,26 @@ public class AccountApiClient {
             return response.jsonPath().getString("type");
         } catch (Exception jsonFailed) {
             return response.xmlPath().getString("account.type");
+        }
+    }
+
+    // dump money in so transfer doesnt fail
+    public void deposit(String accountId, double amount) {
+        given()
+                .baseUri(apiBaseUrl)
+                .accept("application/json")
+                .queryParam("accountId", accountId)
+                .queryParam("amount", amount)
+                .when()
+                .post("/deposit")
+                .then()
+                .statusCode(200);
+    }
+
+    public void ensureMinimumBalance(String accountId, double minimum) {
+        double current = getAccountBalance(accountId);
+        if (current < minimum) {
+            deposit(accountId, minimum - current + 50.00);
         }
     }
 }

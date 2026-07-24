@@ -16,13 +16,13 @@ public class OpenAccountPage extends BasePage {
 
     public OpenAccountPage waitUntilLoaded() {
         waitVisible(ACCOUNT_TYPE);
-        // dropdown options load async from account list
+        // options load late
         page.waitForFunction("() => document.querySelectorAll('#fromAccountId option').length > 0");
         return this;
     }
 
     public OpenAccountPage selectSavings() {
-        // ParaBank uses value 1 for SAVINGS
+        // 1 = savings
         selectByValue(ACCOUNT_TYPE, "1");
         return this;
     }

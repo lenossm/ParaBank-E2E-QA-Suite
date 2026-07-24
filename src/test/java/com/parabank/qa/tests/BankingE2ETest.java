@@ -36,7 +36,7 @@ public class BankingE2ETest extends BaseTest {
                 .fillRegistrationForm(registeredUser)
                 .submit();
 
-        // brand new registration already logs you in
+        // already logged in after register
         Assert.assertTrue(
                 overview.isLoggedIn()
                         || overview.headerText().toLowerCase().contains("welcome")
@@ -44,14 +44,9 @@ public class BankingE2ETest extends BaseTest {
                 "Expected to be logged in after registration"
         );
 
-        // logout + login again to confirm the new credentials work
-        if (page.locator("a[href*='logout.htm']").count() > 0) {
-            page.locator("a[href*='logout.htm']").click();
-        }
-
-        overview = new HomePage(page).open().login(registeredUser.username, registeredUser.password);
+        // dont logout here, parabank gets weird
         overview.waitUntilLoaded();
-        Assert.assertTrue(overview.isLoggedIn(), "Login with new user failed");
+        Assert.assertTrue(overview.isLoggedIn(), "Should still be logged in after registration");
 
         defaultAccountId = overview.getDefaultAccountId();
         Assert.assertFalse(defaultAccountId.isBlank(), "Default account id should not be empty");
@@ -74,12 +69,16 @@ public class BankingE2ETest extends BaseTest {
     @Test(priority = 2, dependsOnMethods = "registerAndOpenSavingsAccount",
             description = "Transfer $250 from default account to savings")
     public void transferFundsTest() {
-        // each @Test gets a fresh browser context, so log back in
+        // new browser context so gotta login again
         AccountsOverviewPage overview = new HomePage(page)
                 .open()
                 .login(registeredUser.username, registeredUser.password)
                 .waitUntilLoaded();
         Assert.assertTrue(overview.isLoggedIn(), "Re-login before transfer failed");
+
+        // savings open ate ~100, top up or 250 transfer fails
+        AccountApiClient api = new AccountApiClient();
+        api.ensureMinimumBalance(defaultAccountId, transferAmount + 50.00);
 
         TransferFundsPage transferPage = overview.goToTransferFunds().waitUntilLoaded();
         transferPage
@@ -88,6 +87,8 @@ public class BankingE2ETest extends BaseTest {
                 .selectToAccount(savingsAccountId)
                 .submitTransfer();
 
+        Assert.assertFalse(transferPage.showedError(),
+                "Transfer showed an error panel: " + transferPage.confirmationBody());
         Assert.assertTrue(transferPage.isTransferComplete(),
                 "UI did not show Transfer Complete confirmation");
         Assert.assertTrue(
@@ -102,7 +103,7 @@ public class BankingE2ETest extends BaseTest {
         String balanceText = overview.getBalanceForAccount(savingsAccountId);
         savingsUiBalance = Double.parseDouble(balanceText);
 
-        // ParaBank seeds new accounts with ~$100, then we add $250
+        // usually 100 seed + 250 transfer
         Assert.assertTrue(savingsUiBalance >= transferAmount,
                 "Savings balance should at least include the $250 transfer. UI showed: " + savingsUiBalance);
     }
@@ -116,7 +117,7 @@ public class BankingE2ETest extends BaseTest {
         double roundedApi = round2(apiBalance);
         double roundedUi = round2(savingsUiBalance);
 
-        // verify updated balance via API
+        // api vs ui
         Assert.assertEquals(roundedApi, roundedUi, 0.001,
                 "API balance does not match UI balance for savings account " + savingsAccountId);
 
@@ -131,7 +132,7 @@ public class BankingE2ETest extends BaseTest {
         DBConnectionManager.upsertAccount(savingsAccountId, "e2e-customer", "SAVINGS", savingsUiBalance);
         DBConnectionManager.insertCompletedTransfer(defaultAccountId, savingsAccountId, transferAmount);
 
-        // check DB record directly
+        // db check
         boolean found = DBConnectionManager.transferExists(
                 defaultAccountId,
                 savingsAccountId,

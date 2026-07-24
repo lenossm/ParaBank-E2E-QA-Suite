@@ -1,143 +1,117 @@
-# ParaBank End-to-End Banking QA Suite (UI, REST API, SQL)
+# ParaBank E2E stuff (UI + API + SQL)
 
-Hybrid automation project for [ParaBank](https://parabank.parasoft.com/parabank/index.htm) — a public demo banking app from Parasoft. Built as a portfolio piece to show how one banking workflow can be checked across the UI, REST API, and a SQL layer in the same suite.
+Messing around with [ParaBank](https://parabank.parasoft.com/parabank/index.htm) for my QA portfolio.
 
-I wanted something closer to real FinTech QA work than a single login script: register a customer, open a savings account, move money, then prove the balance and transaction hold up outside the browser.
+Basically one big flow:
+- register a user in the browser
+- open a savings account
+- transfer 250 bucks
+- check the balance thru the API
+- then fake a DB check with H2 cuz we cant hit their real database (its not public lol)
 
-## What this suite covers
+## stack
+- Java 17
+- Maven
+- Playwright (UI)
+- Rest Assured (API)
+- H2 + jdbc (sql part)
+- TestNG
+- page objects for the UI pages
 
-1. **UI (Playwright)** – register a new user with generated data, log in, open a Savings account, transfer `$250.00`
-2. **REST API (REST Assured)** – `GET /accounts/{accountId}` and assert the balance matches what the UI showed
-3. **SQL (H2 + JDBC)** – write/read `ACCOUNT` and `TRANSACTION` rows in a local simulated DB and assert status `COMPLETED`
+## how to run
 
-> Note: ParaBank’s hosted database is not open for outside JDBC access, so SQL checks run against a local H2 schema that mirrors the banking tables used in the flow.
+need jdk + maven installed.
 
-## Tech stack
+from this folder (the one with pom.xml, not src):
 
-| Layer        | Tool            |
-|-------------|-----------------|
-| Language    | Java 17         |
-| Build       | Maven           |
-| UI          | Playwright Java |
-| API         | REST Assured    |
-| DB          | H2 + JDBC       |
-| Runner      | TestNG          |
-| Pattern     | Page Object Model |
-
-## Prerequisites
-
-- JDK 17+ (JDK 21 is fine)
-- Maven 3.8+ on your PATH
-- Internet access (ParaBank is a live demo site)
-
-If `java` / `mvn` are not recognized in a new terminal, set `JAVA_HOME` to your JDK folder and add `%JAVA_HOME%\bin` plus your Maven `bin` folder to `PATH`.
-
-## Setup & run
-
-```bash
-# from the project root
+```
 mvn clean test
 ```
 
-First run may download Playwright browser binaries automatically. If Chromium is missing, install it once:
+if mvn isnt found on windows i usually do this first:
+```
+$env:JAVA_HOME = "C:\Program Files\Java\jdk-21"
+$env:Path = "C:\Program Files\Java\jdk-21\bin;C:\Users\Lenovo Yoga 7i\scoop\apps\maven\current\bin;" + $env:Path
+```
 
-```bash
+wanna watch the browser? set `headless=false` in `src/test/resources/config.properties`
+
+playwright browsers missing?
+```
 mvn exec:java -e -Dexec.mainClass=com.microsoft.playwright.CLI -Dexec.args="install chromium"
 ```
 
-Useful config lives in `src/test/resources/config.properties` (`base.url`, `headless`, `transfer.amount`, H2 JDBC settings).
-
-Set `headless=false` if you want to watch the browser while debugging.
-
-## Project structure
-
-```text
+## folders
+```
 ParaBank/
 ├── pom.xml
 ├── README.md
-├── src/
-│   ├── main/java/com/parabank/qa/
-│   │   ├── api/
-│   │   │   └── AccountApiClient.java
-│   │   ├── config/
-│   │   │   └── ConfigReader.java
-│   │   ├── db/
-│   │   │   └── DBConnectionManager.java
-│   │   ├── pages/
-│   │   │   ├── BasePage.java
-│   │   │   ├── HomePage.java
-│   │   │   ├── RegisterPage.java
-│   │   │   ├── AccountsOverviewPage.java
-│   │   │   ├── OpenAccountPage.java
-│   │   │   └── TransferFundsPage.java
-│   │   └── utils/
-│   │       └── TestDataGenerator.java
-│   └── test/
-│       ├── java/com/parabank/qa/
-│       │   ├── base/
-│       │   │   └── BaseTest.java
-│       │   └── tests/
-│       │       └── BankingE2ETest.java
-│       └── resources/
-│           ├── config.properties
-│           └── testng.xml
+├── src/main/java/com/parabank/qa/
+│   ├── api/          <- rest calls
+│   ├── config/       <- reads properties
+│   ├── db/           <- h2 helper
+│   ├── pages/        <- pom pages
+│   └── utils/        <- fake user data
+└── src/test/java/...
+    ├── base/BaseTest.java
+    └── tests/BankingE2ETest.java   <- the main e2e
 ```
 
-## Test flow (`BankingE2ETest`)
+## what BankingE2ETest does
+1. registerAndOpenSavingsAccount - ui
+2. transferFundsTest - ui (also tops up balance thru api if broke after opening savings)
+3. verifyBalanceViaApi - rest
+4. checkDbTransaction - h2
 
-| Step | Method                         | Layer   |
-|------|--------------------------------|---------|
-| 1    | `registerAndOpenSavingsAccount`| UI      |
-| 2    | `transferFundsTest`            | UI      |
-| 3    | `verifyBalanceViaApi`          | REST    |
-| 4    | `checkDbTransaction`           | SQL/H2  |
+note to self: after opening savings they pull ~100 from the main account so a 250 transfer can fail. thats why i deposit first via api.
 
-## Sample bug reports (Jira style)
+## bugs i wrote up (jira style)
 
-These are example defects found while exploring ParaBank during framework development — useful for showing how I write bugs, not claims against a specific ParaBank release.
-
-### BUG-001: Transfer confirmation omits destination account on slow network
-
-**Title:** Transfer Complete page sometimes shows amount only, without destination account id  
-**Severity:** Major  
-**Steps to Reproduce:**
-1. Log in with a valid customer that has at least two accounts
-2. Navigate to Transfer Funds
-3. Enter amount `250.00`, choose from/to accounts, submit
-4. Throttle network (Slow 3G) and watch the confirmation panel
-
-**Expected Result:** Confirmation shows amount, from account, and to account clearly.  
-**Actual Result:** On delayed responses the title flips to “Transfer Complete!” but the body briefly renders without the destination account before refreshing, which is easy to miss in automation waits.
+just sample bugs from poking around the site. for the portfolio.
 
 ---
 
-### BUG-002: Open New Account dropdown empty if page is submitted too early
+**BUG-001**  
+Title: Transfer Complete page missing to-account sometimes when network is slow  
+Severity: Major  
 
-**Title:** “Open New Account” submit enabled before `fromAccountId` options finish loading  
-**Severity:** Major  
-**Steps to Reproduce:**
-1. Register a new user and land on Accounts Overview
-2. Click Open New Account
-3. Immediately click Open New Account without waiting for the funding account list
+Steps:
+1. login with a user that has 2 accounts
+2. go to Transfer Funds
+3. send 250
+4. throttle network and watch the confirmation
 
-**Expected Result:** Submit stays disabled (or validation blocks) until funding accounts are loaded.  
-**Actual Result:** Form can be posted with an empty `fromAccountId`, leading to an error page / failed account creation.
+Expected: shows amount + both accounts  
+Actual: title says Transfer Complete but to-account is missing for a sec then pops in. easy to miss in automation.
 
 ---
 
-### BUG-003: Accounts Overview balance formatting inconsistent after transfer
+**BUG-002**  
+Title: Open New Account button works before dropdown finishes loading  
+Severity: Major  
 
-**Title:** Savings balance shows `$350.00` in overview but API returns `350` without trailing cents in some XML responses  
-**Severity:** Minor  
-**Steps to Reproduce:**
-1. Open a savings account (seed deposit applied)
-2. Transfer `$250.00` into that savings account
-3. Read balance from Accounts Overview UI
-4. Call `GET /parabank/services/bank/accounts/{accountId}`
+Steps:
+1. register
+2. open new account page
+3. smash Open New Account before fromAccount list loads
 
-**Expected Result:** UI and API expose the same numeric balance with consistent precision.  
-**Actual Result:** UI always shows two decimal places; API JSON/XML occasionally serializes whole-dollar balances without `.00`, so naive string compares fail even when the money amount is correct.
+Expected: should wait / block you  
+Actual: submits empty fromAccountId and blows up
 
-## Author notes
+---
 
-Built as a junior QA automation / CS student portfolio project. Focus was on a readable POM, reusable config/DB helpers, and one end-to-end path that ties UI → API → SQL together instead of a pile of disconnected scripts.
+**BUG-003**  
+Title: UI balance has .00 but API sometimes doesnt  
+Severity: Minor  
+
+Steps:
+1. open savings + transfer 250
+2. check overview balance
+3. hit GET /accounts/{id}
+
+Expected: same number format  
+Actual: ui shows 350.00, api might just say 350. string compare fails even tho money is right. compare as numbers.
+
+---
+
+thats it. main file to look at is BankingE2ETest.

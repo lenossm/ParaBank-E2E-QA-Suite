@@ -10,9 +10,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 /**
- * Local H2 layer that mirrors ACCOUNT / TRANSACTION tables.
- * ParaBank's hosted DB isn't open for external JDBC, so we keep a
- * simulated schema for SQL assertions in the E2E suite.
+ * local h2 stand-in. cant connect to parabank's real db from outside.
  */
 public class DBConnectionManager {
 
@@ -126,7 +124,7 @@ public class DBConnectionManager {
             try {
                 connection.close();
             } catch (SQLException ignored) {
-                // nothing useful to do on teardown
+                // whatever
             }
             connection = null;
         }

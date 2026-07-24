@@ -2,6 +2,7 @@ package com.parabank.qa.pages;
 
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.parabank.qa.config.ConfigReader;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,22 +13,30 @@ public class AccountsOverviewPage extends BasePage {
 
     private static final String OVERVIEW_HEADER = "h1.title";
     private static final String ACCOUNT_TABLE = "#accountTable";
+    private static final String ACCOUNT_LINKS = "#accountTable a[href*='activity.htm'], #accountTable a[href*='id=']";
     private static final String OPEN_NEW_ACCOUNT = "a[href*='openaccount.htm']";
     private static final String TRANSFER_FUNDS = "a[href*='transfer.htm']";
     private static final String LOGOUT = "a[href*='logout.htm']";
+    private static final String OVERVIEW_LINK = "a[href*='overview.htm']";
 
     public AccountsOverviewPage(Page page) {
         super(page);
     }
 
     public AccountsOverviewPage waitUntilLoaded() {
-        // registration lands here already logged in
-        page.waitForSelector(ACCOUNT_TABLE + ", #leftPanel a[href*='openaccount.htm']",
-                new Page.WaitForSelectorOptions().setTimeout(20000));
-        if (page.locator(ACCOUNT_TABLE).count() == 0) {
-            page.locator("a[href*='overview.htm']").first().click();
-            waitVisible(ACCOUNT_TABLE);
+        // welcome page after register doesnt have the table
+        if (page.locator(ACCOUNT_TABLE).count() == 0 || page.locator(ACCOUNT_LINKS).count() == 0) {
+            if (page.locator(OVERVIEW_LINK).count() > 0) {
+                page.locator(OVERVIEW_LINK).first().click();
+            } else {
+                page.navigate(ConfigReader.get("base.url") + "/overview.htm");
+            }
         }
+
+        page.waitForSelector(ACCOUNT_TABLE, new Page.WaitForSelectorOptions().setTimeout(20000));
+
+        // wait for actual account links
+        page.waitForSelector(ACCOUNT_LINKS, new Page.WaitForSelectorOptions().setTimeout(20000));
         return this;
     }
 
@@ -51,7 +60,7 @@ public class AccountsOverviewPage extends BasePage {
     public List<String> getAccountIds() {
         waitUntilLoaded();
         List<String> ids = new ArrayList<>();
-        Locator links = page.locator("#accountTable a");
+        Locator links = page.locator(ACCOUNT_LINKS);
         int count = links.count();
         for (int i = 0; i < count; i++) {
             String text = links.nth(i).innerText().trim();
@@ -65,7 +74,10 @@ public class AccountsOverviewPage extends BasePage {
     public String getDefaultAccountId() {
         List<String> ids = getAccountIds();
         if (ids.isEmpty()) {
-            throw new IllegalStateException("No accounts found on overview page");
+            throw new IllegalStateException(
+                    "No accounts found on overview page. url=" + page.url()
+                            + " panel=" + page.locator("#rightPanel").innerText()
+            );
         }
         return ids.get(0);
     }
