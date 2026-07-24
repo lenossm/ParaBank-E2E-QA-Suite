@@ -1,0 +1,12 @@
+target/
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
+*.log
+test-output/
+playwright-report/
+.DS_Store
+Thumbs.db
